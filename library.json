@@ -1,8 +1,8 @@
 {
   "name": "WebSocketServer",
-  "version": "1.0.0",
-  "description": "A WebSocket server library for Arduino",
-  "keywords": "websocket, server, arduino",
+  "version": "1.0.1",
+  "description": "WebSockets for ESP32 devices, enabling real-time communication between the ESP32 and web clients",
+  "keywords": "websocket, server, arduino, esp32, wifi",
   "repository": {
     "type": "git",
     "url": "https://github.com/fabianober/WebSocketServer"
@@ -11,10 +11,14 @@
     {
       "name": "Fabian Ober",
       "email": "me@fabian-ober.de",
+      "url": "https://fabian-ober.de",
       "maintainer": true
     }
   ],
   "license": "MIT",
+  "dependencies": {
+    "links2004/WebSocket": "2.6.1"
+  },
   "frameworks": "arduino",
   "platforms": "espressif32"
 }
