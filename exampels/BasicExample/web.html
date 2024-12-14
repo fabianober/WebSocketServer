@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESP32 WebSocket Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .scroll-container {
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        padding: 10px;
+        border-radius: 5px;
+        font-family: monospace;
+      }
+      .scroll-container::-webkit-scrollbar {
+        width: 8px;
+      }
+      .scroll-container::-webkit-scrollbar-thumb {
+        background-color: #888;
+        border-radius: 4px;
+      }
+      .scroll-container::-webkit-scrollbar-thumb:hover {
+        background-color: #555;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 text-gray-900">
+    <div class="container mx-auto p-6">
+      <h1 class="text-3xl font-bold mb-4">ESP32 WebSocket Dashboard</h1>
+
+      <div class="flex items-center space-x-4 mb-6">
+        <button
+          id="toggleLed"
+          class="px-4 py-2 bg-blue-500 text-white font-semibold rounded shadow hover:bg-blue-600"
+        >
+          Toggle onboard LED
+        </button>
+        <button
+          id="toggleLed2"
+          class="px-4 py-2 bg-blue-500 text-white font-semibold rounded shadow hover:bg-blue-600"
+        >
+          Toggle LED 2
+        </button>
+
+        <div class="flex items-center">
+          <span class="mr-2">WebSocket Status:</span>
+          <div
+            id="connectionIndicator"
+            class="w-4 h-4 rounded-full bg-red-500 animate-pulse"
+          ></div>
+        </div>
+      </div>
+
+      <div class="flex items-center mb-6">
+        <input
+          id="manualInput"
+          type="text"
+          placeholder="Enter message"
+          class="px-4 py-2 border rounded shadow w-full mr-2"
+        />
+        <button
+          id="sendMessage"
+          class="px-4 py-2 bg-green-500 text-white font-semibold rounded shadow hover:bg-green-600"
+        >
+          Send
+        </button>
+      </div>
+
+      <div class="tabs mb-6">
+        <button
+          id="filteredTab"
+          class="px-4 py-2 bg-gray-200 rounded-t-md focus:outline-none"
+        >
+          Filtered Messages
+        </button>
+        <button
+          id="debugTab"
+          class="px-4 py-2 bg-gray-200 rounded-t-md focus:outline-none"
+        >
+          Debug Log
+        </button>
+      </div>
+
+      <div id="filteredMessages" class="scroll-container">
+        <h2 class="text-xl font-semibold mb-2">Filtered Messages</h2>
+        <div id="filteredContent"></div>
+      </div>
+
+      <div id="debugMessages" class="scroll-container hidden">
+        <h2 class="text-xl font-semibold mb-2">Debug Log</h2>
+        <div id="debugContent"></div>
+      </div>
+    </div>
+
+    <script>
+      const ws = new WebSocket("ws://<your-esp-ip-adress>:81"); // Replace with ESP32 IP
+
+      const connectionIndicator = document.getElementById(
+        "connectionIndicator"
+      );
+      const toggleLedButton = document.getElementById("toggleLed");
+      const toggleLed2Button = document.getElementById("toggleLed2");
+      const sendMessageButton = document.getElementById("sendMessage");
+      const manualInput = document.getElementById("manualInput");
+      const filteredMessagesDiv = document.getElementById("filteredContent");
+      const debugMessagesDiv = document.getElementById("debugContent");
+      const filteredMessagesTab = document.getElementById("filteredMessages");
+      const debugMessagesTab = document.getElementById("debugMessages");
+
+      let lastPingTime = Date.now();
+
+      // WebSocket events
+      ws.onopen = () => {
+        connectionIndicator.classList.remove("bg-red-500");
+        connectionIndicator.classList.add("bg-green-500");
+      };
+
+      ws.onclose = () => {
+        connectionIndicator.classList.remove("bg-green-500");
+        connectionIndicator.classList.add("bg-red-500");
+      };
+
+      ws.onmessage = (event) => {
+        const message = event.data;
+        const currentTime = Date.now();
+
+        // Debug log
+        addMessageToLog(`[Received] ${message}`);
+
+        // Filter ping messages
+        if (message.startsWith("PING::")) {
+          lastPingTime = currentTime;
+          return;
+        }
+
+        // Add to filtered messages
+        addMessageToFiltered(message);
+      };
+
+      // Toggle LED
+      toggleLedButton.addEventListener("click", () => {
+        ws.send("1");
+        addMessageToLog("[Sent] 1");
+      });
+
+      toggleLed2Button.addEventListener("click", () => {
+        ws.send("2");
+        addMessageToLog("[Sent] 2");
+      });
+
+      // Send custom message
+      sendMessageButton.addEventListener("click", () => {
+        const message = manualInput.value.trim();
+        if (message) {
+          ws.send(message);
+          addMessageToLog(`[Sent] ${message}`);
+          manualInput.value = "";
+        }
+      });
+
+      // Tab switching
+      document.getElementById("filteredTab").addEventListener("click", () => {
+        filteredMessagesTab.classList.remove("hidden");
+        debugMessagesTab.classList.add("hidden");
+      });
+
+      document.getElementById("debugTab").addEventListener("click", () => {
+        filteredMessagesTab.classList.add("hidden");
+        debugMessagesTab.classList.remove("hidden");
+      });
+
+      // Utility functions
+      function addMessageToFiltered(message) {
+        const p = document.createElement("p");
+        let messageType = message.split("::")[0];
+        let messageContent = message.split("::")[1];
+
+        p.textContent = "[" + messageType + "] " + messageContent;
+
+        switch (messageType) {
+          case "INFO":
+            p.style.color = "green";
+            break;
+          case "WARNING":
+            p.style.color = "orange";
+            break;
+          case "ERROR":
+            p.style.color = "red";
+            break;
+          default:
+            p.style.color = "#e5e7eb";
+        }
+
+        filteredMessagesDiv.appendChild(p);
+        p.scrollIntoView({ behavior: "smooth" });
+      }
+
+      function addMessageToLog(message) {
+        const p = document.createElement("p");
+        p.textContent = message;
+        debugMessagesDiv.appendChild(p);
+        p.scrollIntoView({ behavior: "smooth" });
+      }
+
+      // Connection pulse check
+      setInterval(() => {
+        const timeSinceLastPing = Date.now() - lastPingTime;
+        if (timeSinceLastPing > 10000) {
+          connectionIndicator.classList.remove("bg-green-500");
+          connectionIndicator.classList.add("bg-red-500");
+        }
+      }, 1000);
+    </script>
+  </body>
+</html>
